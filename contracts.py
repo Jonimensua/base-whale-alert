@@ -39,7 +39,7 @@ def get_block(block_number):
     return rpc_call("eth_getBlockByNumber", [hex(block_number), True])
 
 def main():
-    print("📦 Smart Contract Monitor iniciado")
+    print("Contract Monitor iniciado")
     ultimo_bloque = get_latest_block()
 
     while True:
@@ -70,6 +70,17 @@ def main():
                             # Alerta por deploy repetido
                             if deployer_count[creator] >= 2:
                                 alerta_repetida = (
-                                    "⚠️ REPEATED CONTRACT DEPLOYER\n\n"
-                                    f"👤 Creator: {creator}\n"
-                                    f"📦 Deploy
+                                    "REPEATED CONTRACT DEPLOYER\n\n"
+                                    "Creator: " + creator + "\n"
+                                    "Deployments detected: " + str(deployer_count[creator]) + "\n\n"
+                                    "#Base #SmartMoney #OnChain"
+                                )
+
+                                print(alerta_repetida)
+                                enviar_telegram(alerta_repetida)
+
+                            # Mensaje normal
+                            mensaje = (
+                                "SMART CONTRACT DEPLOYED\n\n"
+                                "Gas: " + str(gas_used) + "\n"
+                                "Value: " + str(round(valor_eth, 4)) + " ETH\n"
