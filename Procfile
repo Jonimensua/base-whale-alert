@@ -1,1 +1,1 @@
-worker: python contracts.py
+worker: python daily_report.py
