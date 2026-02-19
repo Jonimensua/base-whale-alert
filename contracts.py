@@ -7,7 +7,8 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-GAS_THRESHOLD = 1000000  # filtro gas alto
+GAS_THRESHOLD = 1000000
+
 deployer_count = {}
 
 def enviar_telegram(mensaje):
@@ -57,37 +58,18 @@ def main():
                         valor_eth = int(tx["value"], 16) / (10**18)
 
                         if gas_used >= GAS_THRESHOLD or valor_eth > 0:
+
                             creator = tx["from"]
+
+                            # Contador de deploys
                             if creator not in deployer_count:
                                 deployer_count[creator] = 1
                             else:
                                 deployer_count[creator] += 1
-                                if deployer_count[creator] >= 2:
-                                    alerta_repetida = (
-                                        "⚠️ REPEATED CONTRACT DEPLOYER\n\n"
-                                        f"👤 Creator: {creator}\n"
-                                        f"📦 Deployments detected: {deployer_count[creator]}\n\n"
-                                        "#Base #SmartMoney #OnChain"
-                                    )
-                                    print(alerta_repetida)
-                                    enviar_telegram(alerta_repetida)
-                                    mensaje = (
-                                "🧠 SMART CONTRACT DEPLOYED\n\n"
-                                f"⛽ Gas: {gas_used}\n"
-                                f"💰 Value: {valor_eth:.4f} ETH\n"
-                                f"👤 Creator: {tx['from']}\n\n"
-                                f"🔗 Tx:\n{tx['hash']}\n\n"
-                                "#Base #SmartContract #OnChain"
-                            )
 
-                            print(mensaje)
-                            enviar_telegram(mensaje)
-
-                ultimo_bloque = bloque_actual
-
-        except Exception as e:
-            print("Error en contract monitor:", e)
-            time.sleep(5)
-
-if __name__ == "__main__":
-    main()
+                            # Alerta por deploy repetido
+                            if deployer_count[creator] >= 2:
+                                alerta_repetida = (
+                                    "⚠️ REPEATED CONTRACT DEPLOYER\n\n"
+                                    f"👤 Creator: {creator}\n"
+                                    f"📦 Deploy
