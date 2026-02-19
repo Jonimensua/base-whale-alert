@@ -9,15 +9,13 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 GAS_THRESHOLD = 1000000
 
-deployer_count = {}
-
-def enviar_telegram(texto):
-    url = "https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendMessage"
-    data = {
+def enviar_telegram(mensaje):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
         "chat_id": CHAT_ID,
-        "text": texto
+        "text": mensaje
     }
-    requests.post(url, data=data)
+    requests.post(url, data=payload)
 
 def rpc_call(method, params):
     payload = {
@@ -26,36 +24,52 @@ def rpc_call(method, params):
         "params": params,
         "id": 1
     }
-    r = requests.post(BASE_RPC, json=payload)
-    return r.json()["result"]
+    response = requests.post(BASE_RPC, json=payload)
+    return response.json()["result"]
 
 def get_latest_block():
     return int(rpc_call("eth_blockNumber", []), 16)
 
-def get_block(num):
-    return rpc_call("eth_getBlockByNumber", [hex(num), True])
+def get_block(block_number):
+    return rpc_call("eth_getBlockByNumber", [hex(block_number), True])
 
 def main():
-    print("Contract monitor running")
-    ultimo = get_latest_block()
+    print("Contract Monitor iniciado")
+    ultimo_bloque = get_latest_block()
 
     while True:
         try:
             time.sleep(10)
-            actual = get_latest_block()
+            bloque_actual = get_latest_block()
 
-            if actual > ultimo:
-                bloque = get_block(actual)
+            if bloque_actual > ultimo_bloque:
+                block_data = get_block(bloque_actual)
 
-                for tx in bloque["transactions"]:
+                for tx in block_data["transactions"]:
+
                     if tx["to"] is None:
 
-                        gas = int(tx["gas"], 16)
-                        value = int(tx["value"], 16) / (10**18)
+                        gas_used = int(tx["gas"], 16)
+                        valor_eth = int(tx["value"], 16) / (10**18)
 
-                        if gas >= GAS_THRESHOLD or value > 0:
+                        if gas_used >= GAS_THRESHOLD or valor_eth > 0:
 
-                            creator = tx["from"]
+                            mensaje = (
+                                "SMART CONTRACT DEPLOYED\n\n"
+                                f"Gas: {gas_used}\n"
+                                f"Value: {valor_eth:.4f} ETH\n"
+                                f"Creator: {tx['from']}\n\n"
+                                f"Tx:\n{tx['hash']}\n"
+                            )
 
-                            if creator not in deployer_count:
-                                deployer_count[creator] =
+                            print(mensaje)
+                            enviar_telegram(mensaje)
+
+                ultimo_bloque = bloque_actual
+
+        except Exception as e:
+            print("Error en contract monitor:", e)
+            time.sleep(5)
+
+if __name__ == "__main__":
+    main()
