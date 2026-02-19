@@ -9,16 +9,13 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 GAS_THRESHOLD = 1000000
 TRACK_BLOCKS = 50
+
 tracked_contracts = {}
 
-
-def enviar_telegram(mensaje):
+def enviar_telegram(texto):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": mensaje
-    }
-    requests.post(url, data=payload)
+    data = {"chat_id": CHAT_ID, "text": texto}
+    requests.post(url, data=data)
 
 def rpc_call(method, params):
     payload = {
@@ -27,17 +24,17 @@ def rpc_call(method, params):
         "params": params,
         "id": 1
     }
-    response = requests.post(BASE_RPC, json=payload)
-    return response.json()["result"]
+    r = requests.post(BASE_RPC, json=payload)
+    return r.json()["result"]
 
 def get_latest_block():
     return int(rpc_call("eth_blockNumber", []), 16)
 
-def get_block(block_number):
-    return rpc_call("eth_getBlockByNumber", [hex(block_number), True])
+def get_block(num):
+    return rpc_call("eth_getBlockByNumber", [hex(num), True])
 
 def main():
-    print("Contract Monitor iniciado")
+    print("Contract + Liquidity Monitor iniciado")
     ultimo_bloque = get_latest_block()
 
     while True:
@@ -46,10 +43,13 @@ def main():
             bloque_actual = get_latest_block()
 
             if bloque_actual > ultimo_bloque:
+
+                # Revisar nuevos bloques
                 block_data = get_block(bloque_actual)
 
                 for tx in block_data["transactions"]:
 
+                    # 1️⃣ Detectar nuevo contrato
                     if tx["to"] is None:
 
                         gas_used = int(tx["gas"], 16)
@@ -57,21 +57,51 @@ def main():
 
                         if gas_used >= GAS_THRESHOLD or valor_eth > 0:
 
+                            contract_hash = tx["hash"]
+                            tracked_contracts[contract_hash] = bloque_actual
+
                             mensaje = (
-                                "SMART CONTRACT DEPLOYED\n\n"
-                                f"Gas: {gas_used}\n"
-                                f"Value: {valor_eth:.4f} ETH\n"
-                                f"Creator: {tx['from']}\n\n"
-                                f"Tx:\n{tx['hash']}\n"
+                                "BASE NETWORK — NEW SMART CONTRACT\n\n"
+                                f"Gas Used: {gas_used}\n"
+                                f"ETH Value: {valor_eth:.4f}\n"
+                                f"Tx Hash:\n{contract_hash}\n\n"
+                                "---\n"
+                                "On-Chain Intelligence"
                             )
 
                             print(mensaje)
                             enviar_telegram(mensaje)
 
+                    # 2️⃣ Detectar liquidez en contratos rastreados
+                    for contract, start_block in list(tracked_contracts.items()):
+
+                        if bloque_actual - start_block <= TRACK_BLOCKS:
+
+                            value = int(tx["value"], 16) / (10**18)
+
+                            if value > 0 and tx["to"] == contract:
+
+                                alerta = (
+                                    "BASE NETWORK — LIQUIDITY DETECTED\n\n"
+                                    f"Contract Tx: {contract}\n"
+                                    f"Liquidity Added: {value:.4f} ETH\n"
+                                    f"Block: {bloque_actual}\n\n"
+                                    "---\n"
+                                    "On-Chain Intelligence"
+                                )
+
+                                print(alerta)
+                                enviar_telegram(alerta)
+
+                                del tracked_contracts[contract]
+
+                        else:
+                            del tracked_contracts[contract]
+
                 ultimo_bloque = bloque_actual
 
         except Exception as e:
-            print("Error en contract monitor:", e)
+            print("Error:", e)
             time.sleep(5)
 
 if __name__ == "__main__":
