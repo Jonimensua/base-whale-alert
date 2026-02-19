@@ -8,6 +8,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 GAS_THRESHOLD = 1000000  # filtro gas alto
+deployer_count = {}
 
 def enviar_telegram(mensaje):
     try:
