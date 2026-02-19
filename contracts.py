@@ -7,6 +7,8 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+GAS_THRESHOLD = 1000000  # filtro gas alto
+
 def enviar_telegram(mensaje):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -35,7 +37,7 @@ def get_block(block_number):
     return rpc_call("eth_getBlockByNumber", [hex(block_number), True])
 
 def main():
-    print("📦 Contract Monitor iniciado")
+    print("📦 Smart Contract Monitor iniciado")
     ultimo_bloque = get_latest_block()
 
     while True:
@@ -47,16 +49,25 @@ def main():
                 block_data = get_block(bloque_actual)
 
                 for tx in block_data["transactions"]:
-                    if tx["to"] is None:
-                        mensaje = (
-                            "🆕 NUEVO CONTRATO DESPLEGADO EN BASE\n\n"
-                            f"📤 Creator: {tx['from']}\n"
-                            f"🔗 Tx Hash:\n{tx['hash']}\n\n"
-                            "#Base #NewContract #OnChain"
-                        )
 
-                        print(mensaje)
-                        enviar_telegram(mensaje)
+                    if tx["to"] is None:
+
+                        gas_used = int(tx["gas"], 16)
+                        valor_eth = int(tx["value"], 16) / (10**18)
+
+                        if gas_used >= GAS_THRESHOLD or valor_eth > 0:
+
+                            mensaje = (
+                                "🧠 SMART CONTRACT DEPLOYED\n\n"
+                                f"⛽ Gas: {gas_used}\n"
+                                f"💰 Value: {valor_eth:.4f} ETH\n"
+                                f"👤 Creator: {tx['from']}\n\n"
+                                f"🔗 Tx:\n{tx['hash']}\n\n"
+                                "#Base #SmartContract #OnChain"
+                            )
+
+                            print(mensaje)
+                            enviar_telegram(mensaje)
 
                 ultimo_bloque = bloque_actual
 
