@@ -8,6 +8,9 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 GAS_THRESHOLD = 1000000
+TRACK_BLOCKS = 50
+tracked_contracts = {}
+
 
 def enviar_telegram(mensaje):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
