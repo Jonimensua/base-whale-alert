@@ -57,7 +57,24 @@ def main():
                         valor_eth = int(tx["value"], 16) / (10**18)
 
                         if gas_used >= GAS_THRESHOLD or valor_eth > 0:
+                            
+creator = tx["from"]
 
+if creator not in deployer_count:
+    deployer_count[creator] = 1
+else:
+    deployer_count[creator] += 1
+
+if deployer_count[creator] >= 2:
+    alerta_repetida = (
+        "⚠️ REPEATED CONTRACT DEPLOYER\n\n"
+        f"👤 Creator: {creator}\n"
+        f"📦 Deployments detected: {deployer_count[creator]}\n\n"
+        "#Base #SmartMoney #OnChain"
+    )
+
+    print(alerta_repetida)
+    enviar_telegram(alerta_repetida)
                             mensaje = (
                                 "🧠 SMART CONTRACT DEPLOYED\n\n"
                                 f"⛽ Gas: {gas_used}\n"
