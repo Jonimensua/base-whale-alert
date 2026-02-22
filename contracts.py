@@ -1,19 +1,88 @@
+import requests
+import time
+import os
+
+BASE_RPC = "https://mainnet.base.org"
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+
+GAS_THRESHOLD = 1000000
+TRACK_BLOCKS = 50
+
+tracked_contracts = {}
+
+
+def enviar_telegram(texto):
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("ERROR: TELEGRAM_TOKEN or CHAT_ID not set")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {
+        "chat_id": CHAT_ID,
+        "text": texto
+    }
+
+    try:
+        response = requests.post(url, data=data)
+        print("Telegram response:", response.text)
+    except Exception as e:
+        print("Telegram send error:", e)
+
+
+def rpc_call(method, params):
+    payload = {
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": 1
+    }
+
+    try:
+        r = requests.post(BASE_RPC, json=payload)
+        return r.json()["result"]
+    except Exception as e:
+        print("RPC Error:", e)
+        return None
+
+
+def get_latest_block():
+    result = rpc_call("eth_blockNumber", [])
+    if result:
+        return int(result, 16)
+    return None
+
+
+def get_block(num):
+    return rpc_call("eth_getBlockByNumber", [hex(num), True])
+
+
+def main():
     print("Contract + Liquidity Monitor iniciado")
+
     ultimo_bloque = get_latest_block()
+    if not ultimo_bloque:
+        print("Error getting initial block")
+        return
 
     while True:
         try:
             time.sleep(10)
             bloque_actual = get_latest_block()
 
-            if bloque_actual > ultimo_bloque:
+            if not bloque_actual:
+                continue
 
-                # Revisar nuevos bloques
+            if bloque_actual > ultimo_bloque:
                 block_data = get_block(bloque_actual)
+
+                if not block_data:
+                    continue
 
                 for tx in block_data["transactions"]:
 
-                    # 1️⃣ Detectar nuevo contrato
+                    # Detectar contrato nuevo
                     if tx["to"] is None:
 
                         gas_used = int(tx["gas"], 16)
@@ -36,7 +105,7 @@
                             print(mensaje)
                             enviar_telegram(mensaje)
 
-                    # 2️⃣ Detectar liquidez en contratos rastreados
+                    # Detectar liquidez en contratos rastreados
                     for contract, start_block in list(tracked_contracts.items()):
 
                         if bloque_actual - start_block <= TRACK_BLOCKS:
@@ -65,8 +134,9 @@
                 ultimo_bloque = bloque_actual
 
         except Exception as e:
-            print("Error:", e)
+            print("Main loop error:", e)
             time.sleep(5)
+
 
 if __name__ == "__main__":
     main()
