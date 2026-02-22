@@ -7,6 +7,9 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+print("DEBUG TOKEN:", TELEGRAM_TOKEN)
+print("DEBUG CHAT_ID:", CHAT_ID)
+
 GAS_THRESHOLD = 1000000
 TRACK_BLOCKS = 50
 
