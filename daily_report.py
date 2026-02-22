@@ -39,3 +39,16 @@ def run_daily_report():
 
     print(message)
     enviar_telegram(message)
+    from datetime import datetime, timedelta, timezone
+
+def wait_until_midnight_utc():
+    while True:
+        now = datetime.now(timezone.utc)
+        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        seconds_until_midnight = (tomorrow - now).total_seconds()
+        time.sleep(seconds_until_midnight)
+        run_daily_report()
+
+if __name__ == "__main__":
+    print("Daily Report Service Started (UTC schedule)")
+    wait_until_midnight_utc()
