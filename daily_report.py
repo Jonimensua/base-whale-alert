@@ -61,7 +61,7 @@ def run_daily_report():
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-   message = (
+message = (
     "BASE NETWORK — TOP ACTIVITY (24H)\n\n"
     f"🔥 Largest Whale: {round(largest_tx,4)} ETH\n"
     f"🚀 High Gas Deployments: {contract_count}\n"
