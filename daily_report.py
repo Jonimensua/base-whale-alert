@@ -39,6 +39,7 @@ def run_daily_report():
 
     print(message)
     enviar_telegram(message)
+   
     from datetime import datetime, timedelta, timezone
     def wait_until_midnight_utc():
         while True:
