@@ -61,15 +61,15 @@ def run_daily_report():
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    message = (
-        "BASE NETWORK — DAILY INTELLIGENCE REPORT\n\n"
-        f"Date (UTC): {today}\n\n"
-        f"Whale Transactions: {whale_count}\n"
-        f"High Gas Deployments: {contract_count}\n"
-        f"Largest Transaction: {round(largest_tx,4)} ETH\n\n"
-        "---\n"
-        "Automated On-Chain Monitoring"
-    )
+   message = (
+    "BASE NETWORK — TOP ACTIVITY (24H)\n\n"
+    f"🔥 Largest Whale: {round(largest_tx,4)} ETH\n"
+    f"🚀 High Gas Deployments: {contract_count}\n"
+    f"💧 Whale Transactions: {whale_count}\n\n"
+    "Base remains active.\n\n"
+    "—\n"
+    "Automated On-Chain Intelligence"
+)
 
     print(message)
     enviar_telegram(message)
