@@ -158,32 +158,4 @@ if __name__ == "__main__":
 
     while True:
         run_report()
-        time.sleep(43200)  # 12 hours        f"• High-gas deployments: {contract_count}\n"
-        f"• Liquidity events detected: {liquidity_count}\n"
-        f"• Largest whale: {round(largest_tx,4)} ETH\n\n"
-        "Interpretation:\n\n"
-        f"{interpretation}\n\n"
-        "—\n"
-        "Automated On-Chain Intelligence"
-    )
-
-    farcaster_ready = (
-        f"Base 12H snapshot:\n\n"
-        f"{contract_count} high-gas deployments.\n"
-        f"{liquidity_count} contracts received liquidity.\n"
-        f"Largest whale: {round(largest_tx,4)} ETH.\n\n"
-        "Builder momentum remains active."
-    )
-
-    print("TELEGRAM VERSION:\n", telegram_message)
-    print("\nFARCASTER VERSION:\n", farcaster_ready)
-
-    enviar_telegram(telegram_message)
-
-
-if __name__ == "__main__":
-    print("12H Report Service Started")
-
-    while True:
-        run_report()
         time.sleep(43200)  # 12 hours
