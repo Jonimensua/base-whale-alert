@@ -1,76 +1,18 @@
 import requests
 import os
 import time
-import random
 
 # ==============================
-# CONFIGURACIÓN
+# CONFIG
 # ==============================
 
-DEX_URL = "https://api.dexscreener.com/latest/dex/search/?q=base"
-
-# MODO TEST (cambiar luego a 21600)
-POST_INTERVAL_SECONDS = 60  
-
-MIN_LIQUIDITY = 50000
-MIN_VOLUME = 80000
-MIN_PRICE_CHANGE = 4
+POST_INTERVAL_SECONDS = 60  # solo test
 
 TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
 
 # ==============================
-# FUNCIONES
+# PUBLICAR EN TYPEFULLY
 # ==============================
-
-def get_base_pairs():
-    try:
-        response = requests.get(DEX_URL, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("pairs", [])
-    except Exception as e:
-        print("Error fetching pairs:", e)
-        return []
-
-
-def filter_pairs(pairs):
-    opportunities = []
-
-    for pair in pairs:
-        try:
-            liquidity = float(pair.get("liquidity", {}).get("usd", 0))
-            volume = float(pair.get("volume", {}).get("h24", 0))
-            price_change = float(pair.get("priceChange", {}).get("h24", 0))
-
-            if (
-                liquidity > MIN_LIQUIDITY
-                and volume > MIN_VOLUME
-                and abs(price_change) > MIN_PRICE_CHANGE
-            ):
-                opportunities.append(pair)
-
-        except Exception:
-            continue
-
-    return opportunities
-
-
-def generate_post(pair):
-    name = pair.get("baseToken", {}).get("name", "Unknown")
-    volume = float(pair.get("volume", {}).get("h24", 0))
-    liquidity = float(pair.get("liquidity", {}).get("usd", 0))
-    change = float(pair.get("priceChange", {}).get("h24", 0))
-
-    return f"""{name} gaining momentum on Base.
-
-24h Volume: ${int(volume):,}
-Liquidity: ${int(liquidity):,}
-Price change: {change:.2f}%
-
-Early expansion phase.
-Watching closely.
-"""
-
 
 def post_to_typefully(text):
     if not TYPEFULLY_API_KEY:
@@ -95,30 +37,26 @@ def post_to_typefully(text):
     except Exception as e:
         print("Error posting:", e)
 
+# ==============================
+# MOTOR TEST
+# ==============================
 
 def run_engine():
-    print("Checking opportunities...")
+    print("Forcing test post...")
 
-    pairs = get_base_pairs()
-    if not pairs:
-        print("No pairs returned from API.")
-        return
+    test_post = """Base structural momentum building.
 
-    filtered = filter_pairs(pairs)
+Liquidity expanding.
+Volume increasing.
+Smart positioning early.
 
-    if not filtered:
-        print("No opportunities found.")
-        return
+Monitoring closely.
+"""
 
-    selected = random.choice(filtered)
-    post = generate_post(selected)
-
-    print("Posting:\n", post)
-    post_to_typefully(post)
-
+    post_to_typefully(test_post)
 
 # ==============================
-# LOOP PRINCIPAL
+# LOOP
 # ==============================
 
 def main():
