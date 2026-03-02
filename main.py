@@ -2,10 +2,10 @@ import requests
 import os
 import time
 
-POST_INTERVAL_SECONDS = 60  # test, luego lo subimos a 21600
+POST_INTERVAL_SECONDS = 60  # test
 
 TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
-SOCIAL_SET_ID = 287271  # tu social set
+SOCIAL_SET_ID = 287271
 
 def post_to_typefully(text):
     if not TYPEFULLY_API_KEY:
@@ -15,7 +15,7 @@ def post_to_typefully(text):
     try:
         url = "https://api.typefully.com/v1/drafts/"
         headers = {
-            "X-API-KEY": TYPEFULLY_API_KEY,
+            "Authorization": f"Bearer {TYPEFULLY_API_KEY}",
             "Content-Type": "application/json"
         }
 
