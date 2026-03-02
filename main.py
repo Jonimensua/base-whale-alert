@@ -1,65 +1,25 @@
 import requests
 import os
-import time
-
-POST_INTERVAL_SECONDS = 60  # test
 
 TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
 SOCIAL_SET_ID = 287271
 
-def post_to_typefully(text):
-    if not TYPEFULLY_API_KEY:
-        print("ERROR: TYPEFULLY_API_KEY not set.")
-        return
+print("Loaded key:", TYPEFULLY_API_KEY)
 
-    try:
-        url = "https://api.typefully.com/v1/drafts/"
-        headers = {
-            "Authorization": f"Bearer {TYPEFULLY_API_KEY}",
-            "Content-Type": "application/json"
-        }
+url = "https://api.typefully.com/v1/drafts"
 
-        payload = {
-            "content": text,
-            "social_set_ids": [SOCIAL_SET_ID],
-            "auto_post": True
-        }
+headers = {
+    "Authorization": f"Bearer {TYPEFULLY_API_KEY}",
+    "Content-Type": "application/json"
+}
 
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+payload = {
+    "content": "Testing Base automation final.",
+    "social_set_ids": [SOCIAL_SET_ID],
+    "auto_post": True
+}
 
-        print("Typefully response:", response.status_code)
-        print("Response body:", response.text)
+response = requests.post(url, json=payload, headers=headers)
 
-    except Exception as e:
-        print("Error posting:", e)
-
-
-def run_engine():
-    print("Publishing test post...")
-
-    test_post = """Base structural momentum building.
-
-Liquidity expanding.
-Volume rising.
-Smart capital positioning early.
-
-Monitoring closely.
-"""
-
-    post_to_typefully(test_post)
-
-
-def main():
-    print("🚀 Base Intelligence Engine iniciado...")
-
-    while True:
-        try:
-            run_engine()
-            time.sleep(POST_INTERVAL_SECONDS)
-        except Exception as e:
-            print("Loop error:", e)
-            time.sleep(30)
-
-
-if __name__ == "__main__":
-    main()
+print("Status:", response.status_code)
+print("Body:", response.text)
