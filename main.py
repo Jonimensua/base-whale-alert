@@ -9,7 +9,7 @@ print("Loaded key:", TYPEFULLY_API_KEY)
 url = "https://api.typefully.com/v1/drafts"
 
 headers = {
-    "Authorization": f"Bearer {TYPEFULLY_API_KEY}",
+    "X-API-KEY": TYPEFULLY_API_KEY,
     "Content-Type": "application/json"
 }
 
