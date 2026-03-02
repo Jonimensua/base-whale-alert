@@ -1,79 +1,43 @@
 import requests
+import os
 import time
+import random
 
-# ================= CONFIGURACIÓN =================
+# ==============================
+# CONFIGURACIÓN
+# ==============================
 
-BASE_RPC = "https://mainnet.base.org"
+DEX_URL = "https://api.dexscreener.com/latest/dex/search/?q=base"
+POST_INTERVAL_SECONDS = 21600  # 6 horas
+MIN_LIQUIDITY = 150000
+MIN_VOLUME = 300000
+MIN_PRICE_CHANGE = 12
 
-TELEGRAM_TOKEN = "8544264445:AAG78xl8HIp5sTyv_ZZESTqdPQQ0qcmG3Tk"
-CHAT_ID = "-1003841254712"
+TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
 
-ETH_THRESHOLD = 1  # Cambia solo esto si quieres otro filtro
 
-# =================================================
+# ==============================
+# FUNCIONES
+# ==============================
 
-def enviar_telegram(mensaje):
+def get_base_pairs():
     try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": CHAT_ID,
-            "text": mensaje
-        }
-        requests.post(url, data=payload, timeout=10)
+        response = requests.get(DEX_URL)
+        data = response.json()
+        return data.get("pairs", [])
     except Exception as e:
-        print("Error enviando a Telegram:", e)
+        print("Error fetching pairs:", e)
+        return []
 
-def rpc_call(method, params):
-    payload = {
-        "jsonrpc": "2.0",
-        "method": method,
-        "params": params,
-        "id": 1
-    }
-    response = requests.post(BASE_RPC, json=payload, timeout=10)
-    return response.json()["result"]
 
-def get_latest_block():
-    return int(rpc_call("eth_blockNumber", []), 16)
+def filter_pairs(pairs):
+    opportunities = []
 
-def get_block(block_number):
-    return rpc_call("eth_getBlockByNumber", [hex(block_number), True])
-
-def main():
-    print("🚀 Base Whale Alert iniciado...")
-    ultimo_bloque = get_latest_block()
-    print("Bloque actual:", ultimo_bloque)
-
-    while True:
+    for pair in pairs:
         try:
-            time.sleep(10)
-            bloque_actual = get_latest_block()
+            liquidity = float(pair.get("liquidity", {}).get("usd", 0))
+            volume = float(pair.get("volume", {}).get("h24", 0))
+            price_change = float(pair.get("priceChange", {}).get("h24", 0))
 
-            if bloque_actual > ultimo_bloque:
-                block_data = get_block(bloque_actual)
-
-                for tx in block_data["transactions"]:
-                    valor_eth = int(tx["value"], 16) / (10**18)
-
-                    if valor_eth >= ETH_THRESHOLD:
-                        mensaje = (
-                            "🚨 BASE WHALE ALERT 🚨\n\n"
-                            f"💰 Valor: {valor_eth:.4f} ETH\n"
-                            f"📤 From: {tx['from']}\n"
-                            f"📥 To: {tx['to']}\n\n"
-                            f"🔗 Tx Hash:\n{tx['hash']}\n\n"
-                            "#Base #Whale #OnChain"
-                        )
-
-                        print(mensaje)
-                        enviar_telegram(mensaje)
-
-                ultimo_bloque = bloque_actual
-
-        except Exception as e:
-            print("Error en el loop principal:", e)
-            time.sleep(5)
-
-if __name__ == "__main__":
-    main()
-
+            if (
+                liquidity
