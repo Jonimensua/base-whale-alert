@@ -2,17 +2,10 @@ import requests
 import os
 import time
 
-# ==============================
-# CONFIG
-# ==============================
-
-POST_INTERVAL_SECONDS = 60  # solo test
+POST_INTERVAL_SECONDS = 60  # test, luego lo subimos a 21600
 
 TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
-
-# ==============================
-# PUBLICAR EN TYPEFULLY
-# ==============================
+SOCIAL_SET_ID = 287271  # tu social set
 
 def post_to_typefully(text):
     if not TYPEFULLY_API_KEY:
@@ -28,36 +21,33 @@ def post_to_typefully(text):
 
         payload = {
             "content": text,
+            "social_set_ids": [SOCIAL_SET_ID],
             "auto_post": True
         }
 
         response = requests.post(url, json=payload, headers=headers, timeout=10)
-        print("Typefully response:", response.status_code, response.text)
+
+        print("Typefully response:", response.status_code)
+        print("Response body:", response.text)
 
     except Exception as e:
         print("Error posting:", e)
 
-# ==============================
-# MOTOR TEST
-# ==============================
 
 def run_engine():
-    print("Forcing test post...")
+    print("Publishing test post...")
 
     test_post = """Base structural momentum building.
 
 Liquidity expanding.
-Volume increasing.
-Smart positioning early.
+Volume rising.
+Smart capital positioning early.
 
 Monitoring closely.
 """
 
     post_to_typefully(test_post)
 
-# ==============================
-# LOOP
-# ==============================
 
 def main():
     print("🚀 Base Intelligence Engine iniciado...")
