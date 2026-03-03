@@ -7,9 +7,9 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Configuración
-GAS_THRESHOLD = 1500000
-MIN_SCORE = 70
+# 🔥 Configuración ultra estricta
+GAS_THRESHOLD = 2000000
+MIN_SCORE = 85
 SLEEP_TIME = 8
 
 
@@ -72,38 +72,43 @@ def get_balance(address):
     return 0
 
 
+# 🔥 Nuevo scoring profesional
 def score_deployer(deployer, gas_used, eth_value):
-    score = 0
 
+    score = 0
     tx_count = get_tx_count(deployer)
     balance = get_balance(deployer)
 
-    # Gas alto
-    if gas_used > 3000000:
+    # Gas MUY alto
+    if gas_used > 4000000:
+        score += 30
+    elif gas_used > 3000000:
         score += 20
 
-    # ETH enviado en el deploy
-    if eth_value > 0:
+    # ETH real movido
+    if eth_value > 1:
+        score += 30
+    elif eth_value > 0.5:
         score += 20
 
-    # Wallet activa
-    if tx_count > 50:
+    # Wallet con historial fuerte
+    if tx_count > 500:
         score += 20
+    elif tx_count > 200:
+        score += 10
 
-    # Wallet con balance relevante
-    if balance > 1:
+    # Wallet con capital serio
+    if balance > 10:
         score += 20
-
-    # Wallet muy activa
-    if tx_count > 200:
-        score += 20
+    elif balance > 5:
+        score += 10
 
     return score, tx_count, balance
 
 
 def run_contract_monitor():
 
-    print("Advanced On-Chain Intelligence Engine iniciado")
+    print("🔥 Advanced Intelligence Engine iniciado")
 
     ultimo_bloque = get_latest_block()
     if not ultimo_bloque:
@@ -126,7 +131,6 @@ def run_contract_monitor():
 
                 for tx in block_data["transactions"]:
 
-                    # Detectar contrato nuevo
                     if tx["to"] is None:
 
                         gas_used = int(tx["gas"], 16)
@@ -147,7 +151,7 @@ def run_contract_monitor():
                         if score >= MIN_SCORE:
 
                             mensaje = (
-                                "🚨 HIGH-POTENTIAL DEPLOY DETECTED\n\n"
+                                "🚨 HIGH-CONVICTION DEPLOY\n\n"
                                 f"Deployer: {deployer}\n"
                                 f"Gas Used: {gas_used}\n"
                                 f"ETH Value: {eth_value:.4f}\n"
@@ -156,7 +160,7 @@ def run_contract_monitor():
                                 f"Score: {score}/100\n\n"
                                 f"Tx Hash:\n{tx_hash}\n\n"
                                 "---\n"
-                                "On-Chain Intelligence Engine"
+                                "Base Intelligence Engine"
                             )
 
                             print(mensaje)
