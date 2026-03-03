@@ -7,9 +7,7 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# 🔥 Configuración ultra estricta
-GAS_THRESHOLD = 2000000
-MIN_SCORE = 85
+# Intervalo entre bloques
 SLEEP_TIME = 8
 
 
@@ -72,43 +70,9 @@ def get_balance(address):
     return 0
 
 
-# 🔥 Nuevo scoring profesional
-def score_deployer(deployer, gas_used, eth_value):
-
-    score = 0
-    tx_count = get_tx_count(deployer)
-    balance = get_balance(deployer)
-
-    # Gas MUY alto
-    if gas_used > 4000000:
-        score += 30
-    elif gas_used > 3000000:
-        score += 20
-
-    # ETH real movido
-    if eth_value > 1:
-        score += 30
-    elif eth_value > 0.5:
-        score += 20
-
-    # Wallet con historial fuerte
-    if tx_count > 500:
-        score += 20
-    elif tx_count > 200:
-        score += 10
-
-    # Wallet con capital serio
-    if balance > 10:
-        score += 20
-    elif balance > 5:
-        score += 10
-
-    return score, tx_count, balance
-
-
 def run_contract_monitor():
 
-    print("🔥 Advanced Intelligence Engine iniciado")
+    print("🔥 Ultra-Strict Base Intelligence Engine iniciado")
 
     ultimo_bloque = get_latest_block()
     if not ultimo_bloque:
@@ -131,6 +95,7 @@ def run_contract_monitor():
 
                 for tx in block_data["transactions"]:
 
+                    # Detectar creación de contrato
                     if tx["to"] is None:
 
                         gas_used = int(tx["gas"], 16)
@@ -138,33 +103,28 @@ def run_contract_monitor():
                         deployer = tx["from"]
                         tx_hash = tx["hash"]
 
-                        # Filtro inicial
-                        if gas_used < GAS_THRESHOLD and eth_value == 0:
-                            continue
+                        # 🔥 FILTRO ULTRA DURO COMBINADO
+                        if gas_used > 3500000 and eth_value > 0.3:
 
-                        score, tx_count, balance = score_deployer(
-                            deployer,
-                            gas_used,
-                            eth_value
-                        )
+                            tx_count = get_tx_count(deployer)
+                            balance = get_balance(deployer)
 
-                        if score >= MIN_SCORE:
+                            if tx_count > 300 and balance > 3:
 
-                            mensaje = (
-                                "🚨 HIGH-CONVICTION DEPLOY\n\n"
-                                f"Deployer: {deployer}\n"
-                                f"Gas Used: {gas_used}\n"
-                                f"ETH Value: {eth_value:.4f}\n"
-                                f"Tx Count: {tx_count}\n"
-                                f"Balance: {balance:.4f} ETH\n"
-                                f"Score: {score}/100\n\n"
-                                f"Tx Hash:\n{tx_hash}\n\n"
-                                "---\n"
-                                "Base Intelligence Engine"
-                            )
+                                mensaje = (
+                                    "🚨 HIGH-CONVICTION DEPLOY\n\n"
+                                    f"Deployer: {deployer}\n"
+                                    f"Gas Used: {gas_used}\n"
+                                    f"ETH Value: {eth_value:.4f}\n"
+                                    f"Tx Count: {tx_count}\n"
+                                    f"Balance: {balance:.4f} ETH\n\n"
+                                    f"Tx Hash:\n{tx_hash}\n\n"
+                                    "---\n"
+                                    "Base Intelligence Engine"
+                                )
 
-                            print(mensaje)
-                            enviar_telegram(mensaje)
+                                print(mensaje)
+                                enviar_telegram(mensaje)
 
                 ultimo_bloque = bloque_actual
 
