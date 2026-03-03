@@ -160,3 +160,5 @@ def run_contract_monitor():
         except Exception as e:
             print("Loop error:", e)
             time.sleep(5)
+            if __name__ == "__main__":
+    run_contract_monitor()
