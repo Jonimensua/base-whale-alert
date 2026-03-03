@@ -76,25 +76,30 @@ def get_balance(address):
 def generate_analysis(gas_used, eth_value, tx_count, balance):
 
     prompt = f"""
-    Analyze this Base network smart contract deployment:
+You are a professional on-chain analyst writing insights for a public crypto audience.
 
-    Gas Used: {gas_used}
-    ETH Sent: {eth_value}
-    Wallet Tx Count: {tx_count}
-    Wallet Balance: {balance} ETH
+Analyze this Base network smart contract deployment:
 
-    Determine if this looks like:
-    - A serious project launch
-    - A coordinated deployment
-    - Or low-quality noise
+Gas Used: {gas_used}
+ETH Sent: {eth_value}
+Wallet Transaction Count: {tx_count}
+Wallet Balance: {balance} ETH
 
-    Be concise and professional.
-    """
+Write a concise 4–6 sentence analysis explaining:
+
+- What these metrics suggest
+- Whether this looks structured or random
+- Why it may or may not be worth monitoring
+
+Do NOT exaggerate.
+Do NOT use hype language.
+Sound analytical, credible, and professional.
+"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are an expert crypto on-chain analyst."},
+            {"role": "system", "content": "You are an expert institutional-grade on-chain analyst."},
             {"role": "user", "content": prompt}
         ]
     )
@@ -104,7 +109,7 @@ def generate_analysis(gas_used, eth_value, tx_count, balance):
 
 def run_contract_monitor():
 
-    print("🔥 Base Intelligence Engine + AI iniciado")
+    print("🔥 Base Intelligence Engine + AI (Public Mode) iniciado")
 
     ultimo_bloque = get_latest_block()
     if not ultimo_bloque:
@@ -133,7 +138,7 @@ def run_contract_monitor():
                         deployer = tx["from"]
                         tx_hash = tx["hash"]
 
-                        # Filtro equilibrado
+                        # 🎯 FILTRO EQUILIBRADO (3–10 señales/día aprox.)
                         if gas_used > 3000000 and eth_value > 0.2:
 
                             tx_count = get_tx_count(deployer)
@@ -149,17 +154,16 @@ def run_contract_monitor():
                                 )
 
                                 mensaje = (
-                                    "🚨 HIGH-CONVICTION DEPLOY\n\n"
+                                    "🚨 High-Conviction Contract Deployment\n\n"
                                     f"Deployer: {deployer}\n"
                                     f"Gas Used: {gas_used}\n"
-                                    f"ETH Value: {eth_value:.4f}\n"
+                                    f"ETH Sent: {eth_value:.4f}\n"
                                     f"Tx Count: {tx_count}\n"
                                     f"Balance: {balance:.4f} ETH\n\n"
-                                    "🧠 AI Insight:\n"
+                                    "🧠 On-Chain Analysis:\n"
                                     f"{analysis}\n\n"
                                     f"Tx Hash:\n{tx_hash}\n\n"
-                                    "---\n"
-                                    "Base Intelligence Engine"
+                                    "— Base On-Chain Intelligence"
                                 )
 
                                 enviar_telegram(mensaje)
