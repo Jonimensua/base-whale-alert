@@ -7,7 +7,6 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Intervalo entre bloques
 SLEEP_TIME = 8
 
 
@@ -72,7 +71,7 @@ def get_balance(address):
 
 def run_contract_monitor():
 
-    print("🔥 Ultra-Strict Base Intelligence Engine iniciado")
+    print("🔥 Balanced Base Intelligence Engine iniciado")
 
     ultimo_bloque = get_latest_block()
     if not ultimo_bloque:
@@ -103,8 +102,8 @@ def run_contract_monitor():
                         deployer = tx["from"]
                         tx_hash = tx["hash"]
 
-                        # 🔥 FILTRO ULTRA DURO COMBINADO
-                        if gas_used > 3500000 and eth_value > 0.3:
+                        # 🎯 FILTRO EQUILIBRADO
+                        if gas_used > 3000000 and eth_value > 0.2:
 
                             tx_count = get_tx_count(deployer)
                             balance = get_balance(deployer)
