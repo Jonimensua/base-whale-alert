@@ -7,7 +7,7 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Configuración inteligente
+# Configuración
 GAS_THRESHOLD = 1500000
 MIN_SCORE = 70
 SLEEP_TIME = 8
@@ -15,6 +15,7 @@ SLEEP_TIME = 8
 
 def enviar_telegram(texto):
     if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("Telegram credentials missing")
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -24,9 +25,10 @@ def enviar_telegram(texto):
     }
 
     try:
-        requests.post(url, data=data)
-    except:
-        pass
+        response = requests.post(url, data=data, timeout=10)
+        print("Telegram response:", response.text)
+    except Exception as e:
+        print("Telegram error:", e)
 
 
 def rpc_call(method, params):
@@ -40,7 +42,8 @@ def rpc_call(method, params):
     try:
         r = requests.post(BASE_RPC, json=payload, timeout=10)
         return r.json().get("result")
-    except:
+    except Exception as e:
+        print("RPC error:", e)
         return None
 
 
@@ -135,7 +138,11 @@ def run_contract_monitor():
                         if gas_used < GAS_THRESHOLD and eth_value == 0:
                             continue
 
-                        score, tx_count, balance = score_deployer(deployer, gas_used, eth_value)
+                        score, tx_count, balance = score_deployer(
+                            deployer,
+                            gas_used,
+                            eth_value
+                        )
 
                         if score >= MIN_SCORE:
 
@@ -160,5 +167,7 @@ def run_contract_monitor():
         except Exception as e:
             print("Loop error:", e)
             time.sleep(5)
-            if __name__ == "__main__":
+
+
+if __name__ == "__main__":
     run_contract_monitor()
