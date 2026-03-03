@@ -7,18 +7,14 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-print("DEBUG TOKEN:", TELEGRAM_TOKEN)
-print("DEBUG CHAT_ID:", CHAT_ID)
-
-GAS_THRESHOLD = 1000000
-TRACK_BLOCKS = 50
-
-tracked_contracts = {}
+# Configuración inteligente
+GAS_THRESHOLD = 1500000
+MIN_SCORE = 70
+SLEEP_TIME = 8
 
 
 def enviar_telegram(texto):
     if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("ERROR: TELEGRAM_TOKEN or CHAT_ID not set")
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -28,10 +24,9 @@ def enviar_telegram(texto):
     }
 
     try:
-        response = requests.post(url, data=data)
-        print("Telegram response:", response.text)
-    except Exception as e:
-        print("Telegram send error:", e)
+        requests.post(url, data=data)
+    except:
+        pass
 
 
 def rpc_call(method, params):
@@ -43,10 +38,9 @@ def rpc_call(method, params):
     }
 
     try:
-        r = requests.post(BASE_RPC, json=payload)
-        return r.json()["result"]
-    except Exception as e:
-        print("RPC Error:", e)
+        r = requests.post(BASE_RPC, json=payload, timeout=10)
+        return r.json().get("result")
+    except:
         return None
 
 
@@ -61,25 +55,69 @@ def get_block(num):
     return rpc_call("eth_getBlockByNumber", [hex(num), True])
 
 
-def main():
-    print("Contract + Liquidity Monitor iniciado")
+def get_tx_count(address):
+    result = rpc_call("eth_getTransactionCount", [address, "latest"])
+    if result:
+        return int(result, 16)
+    return 0
+
+
+def get_balance(address):
+    result = rpc_call("eth_getBalance", [address, "latest"])
+    if result:
+        return int(result, 16) / (10**18)
+    return 0
+
+
+def score_deployer(deployer, gas_used, eth_value):
+    score = 0
+
+    tx_count = get_tx_count(deployer)
+    balance = get_balance(deployer)
+
+    # Gas alto
+    if gas_used > 3000000:
+        score += 20
+
+    # ETH enviado en el deploy
+    if eth_value > 0:
+        score += 20
+
+    # Wallet activa
+    if tx_count > 50:
+        score += 20
+
+    # Wallet con balance relevante
+    if balance > 1:
+        score += 20
+
+    # Wallet muy activa
+    if tx_count > 200:
+        score += 20
+
+    return score, tx_count, balance
+
+
+def run_contract_monitor():
+
+    print("Advanced On-Chain Intelligence Engine iniciado")
 
     ultimo_bloque = get_latest_block()
     if not ultimo_bloque:
-        print("Error getting initial block")
+        print("No se pudo obtener bloque inicial")
         return
 
     while True:
         try:
-            time.sleep(10)
-            bloque_actual = get_latest_block()
+            time.sleep(SLEEP_TIME)
 
+            bloque_actual = get_latest_block()
             if not bloque_actual:
                 continue
 
             if bloque_actual > ultimo_bloque:
-                block_data = get_block(bloque_actual)
 
+                block_data = get_block(bloque_actual)
                 if not block_data:
                     continue
 
@@ -89,57 +127,36 @@ def main():
                     if tx["to"] is None:
 
                         gas_used = int(tx["gas"], 16)
-                        valor_eth = int(tx["value"], 16) / (10**18)
+                        eth_value = int(tx["value"], 16) / (10**18)
+                        deployer = tx["from"]
+                        tx_hash = tx["hash"]
 
-                        if gas_used >= GAS_THRESHOLD or valor_eth > 0:
+                        # Filtro inicial
+                        if gas_used < GAS_THRESHOLD and eth_value == 0:
+                            continue
 
-                            contract_hash = tx["hash"]
-                            tracked_contracts[contract_hash] = bloque_actual
+                        score, tx_count, balance = score_deployer(deployer, gas_used, eth_value)
+
+                        if score >= MIN_SCORE:
 
                             mensaje = (
-                                "BASE NETWORK — NEW SMART CONTRACT\n\n"
+                                "🚨 HIGH-POTENTIAL DEPLOY DETECTED\n\n"
+                                f"Deployer: {deployer}\n"
                                 f"Gas Used: {gas_used}\n"
-                                f"ETH Value: {valor_eth:.4f}\n"
-                                f"Tx Hash:\n{contract_hash}\n\n"
+                                f"ETH Value: {eth_value:.4f}\n"
+                                f"Tx Count: {tx_count}\n"
+                                f"Balance: {balance:.4f} ETH\n"
+                                f"Score: {score}/100\n\n"
+                                f"Tx Hash:\n{tx_hash}\n\n"
                                 "---\n"
-                                "On-Chain Intelligence"
+                                "On-Chain Intelligence Engine"
                             )
 
                             print(mensaje)
                             enviar_telegram(mensaje)
 
-                    # Detectar liquidez en contratos rastreados
-                    for contract, start_block in list(tracked_contracts.items()):
-
-                        if bloque_actual - start_block <= TRACK_BLOCKS:
-
-                            value = int(tx["value"], 16) / (10**18)
-
-                            if value > 0 and tx["to"] == contract:
-
-                                alerta = (
-                                    "BASE NETWORK — LIQUIDITY DETECTED\n\n"
-                                    f"Contract Tx: {contract}\n"
-                                    f"Liquidity Added: {value:.4f} ETH\n"
-                                    f"Block: {bloque_actual}\n\n"
-                                    "---\n"
-                                    "On-Chain Intelligence"
-                                )
-
-                                print(alerta)
-                                enviar_telegram(alerta)
-
-                                del tracked_contracts[contract]
-
-                        else:
-                            del tracked_contracts[contract]
-
                 ultimo_bloque = bloque_actual
 
         except Exception as e:
-            print("Main loop error:", e)
+            print("Loop error:", e)
             time.sleep(5)
-
-
-if __name__ == "__main__":
-    main()
