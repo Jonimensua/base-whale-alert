@@ -1,11 +1,15 @@
 import requests
 import time
 import os
+from openai import OpenAI
 
 BASE_RPC = "https://mainnet.base.org"
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 SLEEP_TIME = 8
 
@@ -69,13 +73,41 @@ def get_balance(address):
     return 0
 
 
+def generate_analysis(gas_used, eth_value, tx_count, balance):
+
+    prompt = f"""
+    Analyze this Base network smart contract deployment:
+
+    Gas Used: {gas_used}
+    ETH Sent: {eth_value}
+    Wallet Tx Count: {tx_count}
+    Wallet Balance: {balance} ETH
+
+    Determine if this looks like:
+    - A serious project launch
+    - A coordinated deployment
+    - Or low-quality noise
+
+    Be concise and professional.
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are an expert crypto on-chain analyst."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    return response.choices[0].message.content
+
+
 def run_contract_monitor():
 
-    print("🔥 Balanced Base Intelligence Engine iniciado")
+    print("🔥 Base Intelligence Engine + AI iniciado")
 
     ultimo_bloque = get_latest_block()
     if not ultimo_bloque:
-        print("No se pudo obtener bloque inicial")
         return
 
     while True:
@@ -94,7 +126,6 @@ def run_contract_monitor():
 
                 for tx in block_data["transactions"]:
 
-                    # Detectar creación de contrato
                     if tx["to"] is None:
 
                         gas_used = int(tx["gas"], 16)
@@ -102,13 +133,20 @@ def run_contract_monitor():
                         deployer = tx["from"]
                         tx_hash = tx["hash"]
 
-                        # 🎯 FILTRO EQUILIBRADO
+                        # Filtro equilibrado
                         if gas_used > 3000000 and eth_value > 0.2:
 
                             tx_count = get_tx_count(deployer)
                             balance = get_balance(deployer)
 
                             if tx_count > 300 and balance > 3:
+
+                                analysis = generate_analysis(
+                                    gas_used,
+                                    eth_value,
+                                    tx_count,
+                                    balance
+                                )
 
                                 mensaje = (
                                     "🚨 HIGH-CONVICTION DEPLOY\n\n"
@@ -117,12 +155,13 @@ def run_contract_monitor():
                                     f"ETH Value: {eth_value:.4f}\n"
                                     f"Tx Count: {tx_count}\n"
                                     f"Balance: {balance:.4f} ETH\n\n"
+                                    "🧠 AI Insight:\n"
+                                    f"{analysis}\n\n"
                                     f"Tx Hash:\n{tx_hash}\n\n"
                                     "---\n"
                                     "Base Intelligence Engine"
                                 )
 
-                                print(mensaje)
                                 enviar_telegram(mensaje)
 
                 ultimo_bloque = bloque_actual
