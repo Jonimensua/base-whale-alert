@@ -2,136 +2,153 @@ import os
 import time
 import requests
 from web3 import Web3
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ==============================
-# ENVIRONMENT VARIABLES
+# ENV
 # ==============================
 
-BASE_RPC = os.getenv("BASE_RPC")
-PUBLISHER_URL = os.getenv("PUBLISHER_URL")
-
-if not BASE_RPC:
-    raise ValueError("BASE_RPC not found in environment variables")
-
-if not PUBLISHER_URL:
-    raise ValueError("PUBLISHER_URL not found in environment variables")
-
-print("BASE_RPC loaded:", BASE_RPC[:30], "...")
-print("Publisher URL:", PUBLISHER_URL)
+BASE_RPC = os.environ["BASE_RPC"]
+PUBLISHER_URL = os.environ["PUBLISHER_URL"]
 
 # ==============================
-# WEB3 CONNECTION
+# CONNECTION
 # ==============================
 
 web3 = Web3(Web3.HTTPProvider(BASE_RPC))
 
 if not web3.is_connected():
-    raise ConnectionError("Failed to connect to BASE RPC")
+    raise Exception("RPC connection failed")
 
-print("Connected to Base. Current block:", web3.eth.block_number)
+print("🧠 Base Intelligence Engine iniciado")
+print("Connected to Base. Block:", web3.eth.block_number)
 
 # ==============================
 # CONFIG
 # ==============================
 
-ANALYSIS_INTERVAL = 1800  # 30 minutes
-WHALE_THRESHOLD_ETH = 50  # Adjust as needed
+ANALYSIS_INTERVAL = 1800  # 30 min
+BASE_WHALE_THRESHOLD = 20  # ETH base threshold
 
-last_analysis_time = 0
 last_checked_block = web3.eth.block_number
+last_analysis_time = time.time()
+
+tx_counter_30m = 0
+eth_moved_30m = 0
+largest_tx_30m = 0
 
 # ==============================
-# PUBLISH FUNCTION
+# PUBLISH
 # ==============================
 
-def publish_to_x(content):
+def publish(message):
     try:
-        response = requests.post(
+        r = requests.post(
             f"{PUBLISHER_URL}/post",
-            json={"content": content},
-            timeout=20
+            json={"content": message},
+            timeout=15
         )
-
-        print("Publisher status:", response.status_code)
-        print("Publisher body:", response.text)
-
+        print("Publisher:", r.status_code)
     except Exception as e:
-        print("Publish error:", str(e))
-
+        print("Publish error:", e)
 
 # ==============================
 # WHALE DETECTION
 # ==============================
 
-def check_block_for_whales(block_number):
+def dynamic_whale_threshold():
+    if tx_counter_30m > 3000:
+        return 50
+    elif tx_counter_30m > 1500:
+        return 30
+    else:
+        return BASE_WHALE_THRESHOLD
+
+def check_block(block_number):
+    global tx_counter_30m, eth_moved_30m, largest_tx_30m
+
     block = web3.eth.get_block(block_number, full_transactions=True)
+    tx_count = len(block.transactions)
+    tx_counter_30m += tx_count
 
     for tx in block.transactions:
         eth_value = web3.from_wei(tx.value, "ether")
+        eth_moved_30m += float(eth_value)
 
-        if eth_value >= WHALE_THRESHOLD_ETH:
+        if eth_value > largest_tx_30m:
+            largest_tx_30m = float(eth_value)
+
+        if eth_value >= dynamic_whale_threshold():
             message = f"""
-🐋 Whale Alert on Base
+🐋 Whale movement detected on Base
 
+{eth_value:.2f} ETH moved
 Block: {block_number}
-Value: {eth_value:.2f} ETH
-Tx: https://basescan.org/tx/{tx.hash.hex()}
 
-#Base #WhaleAlert
+Liquidity is rotating.
+
+#Base #Whale
 """
-            publish_to_x(message)
-
+            publish(message)
 
 # ==============================
-# PERIODIC ANALYSIS
+# PERIODIC PULSE
 # ==============================
 
-def periodic_analysis():
-    latest_block = web3.eth.block_number
-    block = web3.eth.get_block(latest_block)
+def activity_label(tx_count):
+    if tx_count > 3000:
+        return "🔥 High"
+    elif tx_count > 1500:
+        return "📈 Moderate"
+    else:
+        return "🧊 Low"
 
-    tx_count = len(block.transactions)
+def periodic_update():
+    global tx_counter_30m, eth_moved_30m, largest_tx_30m
+
+    label = activity_label(tx_counter_30m)
 
     message = f"""
-📊 Base Network Update
+📊 Base Network Pulse
 
-Block: {latest_block}
-Transactions in block: {tx_count}
-Time: {datetime.utcnow().strftime('%H:%M UTC')}
+Last 30m:
+• Transactions: {tx_counter_30m}
+• ETH moved: {eth_moved_30m:.2f}
+• Largest tx: {largest_tx_30m:.2f} ETH
 
-#Base #Onchain
+Activity level: {label}
+
+Time: {datetime.now(timezone.utc).strftime('%H:%M UTC')}
+
+#Base
 """
-    publish_to_x(message)
 
+    publish(message)
+
+    # reset counters
+    tx_counter_30m = 0
+    eth_moved_30m = 0
+    largest_tx_30m = 0
 
 # ==============================
 # MAIN LOOP
 # ==============================
 
-print("🔥 Base Intelligence Engine iniciado")
-
 while True:
     try:
         current_block = web3.eth.block_number
 
-        # Check new blocks for whales
         if current_block > last_checked_block:
-            for block_num in range(last_checked_block + 1, current_block + 1):
-                print("Checking block:", block_num)
-                check_block_for_whales(block_num)
-
+            for b in range(last_checked_block + 1, current_block + 1):
+                check_block(b)
             last_checked_block = current_block
 
-        # Periodic analysis
-        current_time = time.time()
-        if current_time - last_analysis_time > ANALYSIS_INTERVAL:
-            print("Running periodic analysis...")
-            periodic_analysis()
-            last_analysis_time = current_time
+        if time.time() - last_analysis_time > ANALYSIS_INTERVAL:
+            periodic_update()
+            last_analysis_time = time.time()
 
         time.sleep(10)
 
     except Exception as e:
-        print("Main loop error:", str(e))
+        print("Main loop error:", e)
         time.sleep(15)
