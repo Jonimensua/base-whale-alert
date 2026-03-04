@@ -1,18 +1,16 @@
 import requests
 import os
 
-TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
-SOCIAL_SET_ID = 287271
+PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
-print("Loaded key:", TYPEFULLY_API_KEY)
+def publish_to_x(content):
+    response = requests.post(
+        f"{PUBLISHER_URL}/post",
+        json={"content": content}
+    )
 
-url = "https://api.typefully.com/v1/drafts"
-
-headers = {
-    "X-API-KEY": TYPEFULLY_API_KEY,
-    "Content-Type": "application/json"
-}
-
+    print("Publisher status:", response.status_code)
+    print("Publisher body:", response.text)
 payload = {
     "content": "Testing Base automation final.",
     "social_set_ids": [SOCIAL_SET_ID],
@@ -23,3 +21,4 @@ response = requests.post(url, json=payload, headers=headers)
 
 print("Status:", response.status_code)
 print("Body:", response.text)
+
