@@ -1,190 +1,137 @@
-import requests
-import time
 import os
-from openai import OpenAI
+import time
+import requests
+from web3 import Web3
+from datetime import datetime
 
-BASE_RPC = "https://mainnet.base.org"
+# ==============================
+# ENVIRONMENT VARIABLES
+# ==============================
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+BASE_RPC = os.getenv("BASE_RPC")
+PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+if not BASE_RPC:
+    raise ValueError("BASE_RPC not found in environment variables")
 
-SLEEP_TIME = 8
+if not PUBLISHER_URL:
+    raise ValueError("PUBLISHER_URL not found in environment variables")
 
+print("BASE_RPC loaded:", BASE_RPC[:30], "...")
+print("Publisher URL:", PUBLISHER_URL)
 
-def enviar_telegram(texto):
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("Telegram credentials missing")
-        return
+# ==============================
+# WEB3 CONNECTION
+# ==============================
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {
-        "chat_id": CHAT_ID,
-        "text": texto
-    }
+web3 = Web3(Web3.HTTPProvider(BASE_RPC))
 
+if not web3.is_connected():
+    raise ConnectionError("Failed to connect to BASE RPC")
+
+print("Connected to Base. Current block:", web3.eth.block_number)
+
+# ==============================
+# CONFIG
+# ==============================
+
+ANALYSIS_INTERVAL = 1800  # 30 minutes
+WHALE_THRESHOLD_ETH = 50  # Adjust as needed
+
+last_analysis_time = 0
+last_checked_block = web3.eth.block_number
+
+# ==============================
+# PUBLISH FUNCTION
+# ==============================
+
+def publish_to_x(content):
     try:
-        response = requests.post(url, data=data, timeout=10)
-        print("Telegram response:", response.text)
-    except Exception as e:
-        print("Telegram error:", e)
+        response = requests.post(
+            f"{PUBLISHER_URL}/post",
+            json={"content": content},
+            timeout=20
+        )
 
-
-def rpc_call(method, params):
-    payload = {
-        "jsonrpc": "2.0",
-        "method": method,
-        "params": params,
-        "id": 1
-    }
-
-    try:
-        r = requests.post(BASE_RPC, json=payload, timeout=10)
-
-        if r.status_code != 200:
-            print("RPC HTTP Error:", r.status_code)
-            return None
-
-        data = r.json()
-
-        if "result" not in data:
-            print("RPC invalid response:", data)
-            return None
-
-        return data["result"]
+        print("Publisher status:", response.status_code)
+        print("Publisher body:", response.text)
 
     except Exception as e:
-        print("RPC Exception:", e)
-        return None
-
-def get_latest_block():
-    result = rpc_call("eth_blockNumber", [])
-    if result:
-        return int(result, 16)
-    return None
+        print("Publish error:", str(e))
 
 
-def get_block(num):
-    return rpc_call("eth_getBlockByNumber", [hex(num), True])
+# ==============================
+# WHALE DETECTION
+# ==============================
 
+def check_block_for_whales(block_number):
+    block = web3.eth.get_block(block_number, full_transactions=True)
 
-def get_tx_count(address):
-    result = rpc_call("eth_getTransactionCount", [address, "latest"])
-    if result:
-        return int(result, 16)
-    return 0
+    for tx in block.transactions:
+        eth_value = web3.from_wei(tx.value, "ether")
 
+        if eth_value >= WHALE_THRESHOLD_ETH:
+            message = f"""
+🐋 Whale Alert on Base
 
-def get_balance(address):
-    result = rpc_call("eth_getBalance", [address, "latest"])
-    if result:
-        return int(result, 16) / (10**18)
-    return 0
+Block: {block_number}
+Value: {eth_value:.2f} ETH
+Tx: https://basescan.org/tx/{tx.hash.hex()}
 
-
-def generate_analysis(gas_used, eth_value, tx_count, balance):
-
-    prompt = f"""
-You are a professional on-chain analyst writing insights for a public crypto audience.
-
-Analyze this Base network smart contract deployment:
-
-Gas Used: {gas_used}
-ETH Sent: {eth_value}
-Wallet Transaction Count: {tx_count}
-Wallet Balance: {balance} ETH
-
-Write a concise 4–6 sentence analysis explaining:
-
-- What these metrics suggest
-- Whether this looks structured or random
-- Why it may or may not be worth monitoring
-
-Do NOT exaggerate.
-Do NOT use hype language.
-Sound analytical, credible, and professional.
+#Base #WhaleAlert
 """
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are an expert institutional-grade on-chain analyst."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    return response.choices[0].message.content
+            publish_to_x(message)
 
 
-def run_contract_monitor():
+# ==============================
+# PERIODIC ANALYSIS
+# ==============================
 
-    print("🔥 Base Intelligence Engine + AI (Public Mode) iniciado")
+def periodic_analysis():
+    latest_block = web3.eth.block_number
+    block = web3.eth.get_block(latest_block)
 
-    ultimo_bloque = get_latest_block()
-    if not ultimo_bloque:
-        return
+    tx_count = len(block.transactions)
 
-    while True:
-        try:
-            time.sleep(SLEEP_TIME)
+    message = f"""
+📊 Base Network Update
 
-            bloque_actual = get_latest_block()
-            if not bloque_actual:
-                continue
+Block: {latest_block}
+Transactions in block: {tx_count}
+Time: {datetime.utcnow().strftime('%H:%M UTC')}
 
-            if bloque_actual > ultimo_bloque:
-
-                block_data = get_block(bloque_actual)
-                if not block_data:
-                    continue
-
-                for tx in block_data["transactions"]:
-
-                    if tx["to"] is None:
-
-                        gas_used = int(tx["gas"], 16)
-                        eth_value = int(tx["value"], 16) / (10**18)
-                        deployer = tx["from"]
-                        tx_hash = tx["hash"]
-
-                        # 🎯 FILTRO EQUILIBRADO (3–10 señales/día aprox.)
-                        if gas_used > 3000000 and eth_value > 0.2:
-
-                            tx_count = get_tx_count(deployer)
-                            balance = get_balance(deployer)
-
-                            if tx_count > 300 and balance > 3:
-
-                                analysis = generate_analysis(
-                                    gas_used,
-                                    eth_value,
-                                    tx_count,
-                                    balance
-                                )
-
-                                mensaje = (
-                                    "🚨 High-Conviction Contract Deployment\n\n"
-                                    f"Deployer: {deployer}\n"
-                                    f"Gas Used: {gas_used}\n"
-                                    f"ETH Sent: {eth_value:.4f}\n"
-                                    f"Tx Count: {tx_count}\n"
-                                    f"Balance: {balance:.4f} ETH\n\n"
-                                    "🧠 On-Chain Analysis:\n"
-                                    f"{analysis}\n\n"
-                                    f"Tx Hash:\n{tx_hash}\n\n"
-                                    "— Base On-Chain Intelligence"
-                                )
-
-                                enviar_telegram(mensaje)
-
-                ultimo_bloque = bloque_actual
-
-        except Exception as e:
-            print("Loop error:", e)
-            time.sleep(5)
+#Base #Onchain
+"""
+    publish_to_x(message)
 
 
-if __name__ == "__main__":
-    run_contract_monitor()
+# ==============================
+# MAIN LOOP
+# ==============================
+
+print("🔥 Base Intelligence Engine iniciado")
+
+while True:
+    try:
+        current_block = web3.eth.block_number
+
+        # Check new blocks for whales
+        if current_block > last_checked_block:
+            for block_num in range(last_checked_block + 1, current_block + 1):
+                print("Checking block:", block_num)
+                check_block_for_whales(block_num)
+
+            last_checked_block = current_block
+
+        # Periodic analysis
+        current_time = time.time()
+        if current_time - last_analysis_time > ANALYSIS_INTERVAL:
+            print("Running periodic analysis...")
+            periodic_analysis()
+            last_analysis_time = current_time
+
+        time.sleep(10)
+
+    except Exception as e:
+        print("Main loop error:", str(e))
+        time.sleep(15)
