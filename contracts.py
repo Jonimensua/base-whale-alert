@@ -42,11 +42,22 @@ def rpc_call(method, params):
 
     try:
         r = requests.post(BASE_RPC, json=payload, timeout=10)
-        return r.json().get("result")
-    except Exception as e:
-        print("RPC error:", e)
-        return None
 
+        if r.status_code != 200:
+            print("RPC HTTP Error:", r.status_code)
+            return None
+
+        data = r.json()
+
+        if "result" not in data:
+            print("RPC invalid response:", data)
+            return None
+
+        return data["result"]
+
+    except Exception as e:
+        print("RPC Exception:", e)
+        return None
 
 def get_latest_block():
     result = rpc_call("eth_blockNumber", [])
