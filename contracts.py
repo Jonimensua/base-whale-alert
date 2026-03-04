@@ -9,11 +9,12 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
-# FILTRO SIMPLE (solo esto cambia)
+# FILTRO PARA REDUCIR ALERTAS
 MIN_GAS = 3000000
 MIN_ETH = 0.5
 
 tracked_contracts = {}
+
 
 def enviar_telegram(texto):
 
@@ -39,12 +40,10 @@ def publicar(texto):
         return
 
     try:
-
         requests.post(
             PUBLISHER_URL + "/post",
             json={"content": texto}
         )
-
     except:
         pass
 
@@ -59,13 +58,9 @@ def rpc_call(method, params):
     }
 
     try:
-
         r = requests.post(BASE_RPC, json=payload)
-
         return r.json()["result"]
-
     except:
-
         return None
 
 
@@ -90,6 +85,10 @@ def run_contract_monitor():
 
     ultimo_bloque = get_latest_block()
 
+    if not ultimo_bloque:
+        print("Error obteniendo bloque inicial")
+        return
+
     while True:
 
         try:
@@ -97,6 +96,9 @@ def run_contract_monitor():
             time.sleep(10)
 
             bloque_actual = get_latest_block()
+
+            if not bloque_actual:
+                continue
 
             if bloque_actual > ultimo_bloque:
 
@@ -112,7 +114,7 @@ def run_contract_monitor():
                         gas_used = int(tx["gas"], 16)
                         valor_eth = int(tx["value"], 16) / (10**18)
 
-                        # FILTRO (esto evita ruido)
+                        # FILTRO
                         if gas_used < MIN_GAS and valor_eth < MIN_ETH:
                             continue
 
@@ -124,7 +126,9 @@ def run_contract_monitor():
                             "BASE NETWORK — NEW SMART CONTRACT\n\n"
                             f"Gas Used: {gas_used}\n"
                             f"ETH Value: {valor_eth:.4f}\n"
-                            f"Tx:\n{contract_hash}"
+                            f"Tx:\n{contract_hash}\n\n"
+                            "---\n"
+                            "On-Chain Intelligence"
                         )
 
                         print(mensaje)
@@ -137,7 +141,6 @@ def run_contract_monitor():
         except Exception as e:
 
             print("Error:", e)
-
             time.sleep(5)
 
 
