@@ -1,154 +1,204 @@
-import os
-import time
 import requests
-from web3 import Web3
-from datetime import datetime, timezone
+import time
+import os
 
-# ==============================
-# ENV
-# ==============================
+BASE_RPC = "https://mainnet.base.org"
 
-BASE_RPC = os.environ["BASE_RPC"]
-PUBLISHER_URL = os.environ["PUBLISHER_URL"]
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-# ==============================
-# CONNECTION
-# ==============================
+TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
+SOCIAL_SET_ID = os.getenv("SOCIAL_SET_ID")
 
-web3 = Web3(Web3.HTTPProvider(BASE_RPC))
+# FILTROS
+MIN_GAS_DEPLOY = 3000000
+MIN_ETH_VALUE = 0.5
+MIN_LIQUIDITY = 2
+COOLDOWN_SECONDS = 600
 
-if not web3.is_connected():
-    raise Exception("RPC connection failed")
+tracked_contracts = {}
+last_alert_time = 0
 
-print("🧠 Base Intelligence Engine iniciado")
-print("Connected to Base. Block:", web3.eth.block_number)
 
-# ==============================
-# CONFIG
-# ==============================
+def enviar_telegram(texto):
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("Telegram no configurado")
+        return
 
-ANALYSIS_INTERVAL = 1800  # 30 min
-BASE_WHALE_THRESHOLD = 20  # ETH base threshold
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
-last_checked_block = web3.eth.block_number
-last_analysis_time = time.time()
+    data = {
+        "chat_id": CHAT_ID,
+        "text": texto
+    }
 
-tx_counter_30m = 0
-eth_moved_30m = 0
-largest_tx_30m = 0
-
-# ==============================
-# PUBLISH
-# ==============================
-
-def publish(message):
     try:
-        r = requests.post(
-            f"{PUBLISHER_URL}/post",
-            json={"content": message},
-            timeout=15
-        )
-        print("Publisher:", r.status_code)
+        r = requests.post(url, data=data)
+        print("Telegram:", r.text)
     except Exception as e:
-        print("Publish error:", e)
+        print("Telegram error:", e)
 
-# ==============================
-# WHALE DETECTION
-# ==============================
 
-def dynamic_whale_threshold():
-    if tx_counter_30m > 3000:
-        return 50
-    elif tx_counter_30m > 1500:
-        return 30
-    else:
-        return BASE_WHALE_THRESHOLD
+def publicar_typefully(texto):
 
-def check_block(block_number):
-    global tx_counter_30m, eth_moved_30m, largest_tx_30m
+    if not TYPEFULLY_API_KEY or not SOCIAL_SET_ID:
+        print("Typefully no configurado")
+        return
 
-    block = web3.eth.get_block(block_number, full_transactions=True)
-    tx_count = len(block.transactions)
-    tx_counter_30m += tx_count
+    url = "https://api.typefully.com/v1/drafts"
 
-    for tx in block.transactions:
-        eth_value = web3.from_wei(tx.value, "ether")
-        eth_moved_30m += float(eth_value)
+    headers = {
+        "X-API-KEY": TYPEFULLY_API_KEY,
+        "Content-Type": "application/json"
+    }
 
-        if eth_value > largest_tx_30m:
-            largest_tx_30m = float(eth_value)
+    payload = {
+        "content": texto,
+        "social_set_ids": [int(SOCIAL_SET_ID)],
+        "auto_schedule": True
+    }
 
-        if eth_value >= dynamic_whale_threshold():
-            message = f"""
-🐋 Whale movement detected on Base
-
-{eth_value:.2f} ETH moved
-Block: {block_number}
-
-Liquidity is rotating.
-
-#Base #Whale
-"""
-            publish(message)
-
-# ==============================
-# PERIODIC PULSE
-# ==============================
-
-def activity_label(tx_count):
-    if tx_count > 3000:
-        return "🔥 High"
-    elif tx_count > 1500:
-        return "📈 Moderate"
-    else:
-        return "🧊 Low"
-
-def periodic_update():
-    global tx_counter_30m, eth_moved_30m, largest_tx_30m
-
-    label = activity_label(tx_counter_30m)
-
-    message = f"""
-📊 Base Network Pulse
-
-Last 30m:
-• Transactions: {tx_counter_30m}
-• ETH moved: {eth_moved_30m:.2f}
-• Largest tx: {largest_tx_30m:.2f} ETH
-
-Activity level: {label}
-
-Time: {datetime.now(timezone.utc).strftime('%H:%M UTC')}
-
-#Base
-"""
-
-    publish(message)
-
-    # reset counters
-    tx_counter_30m = 0
-    eth_moved_30m = 0
-    largest_tx_30m = 0
-
-# ==============================
-# MAIN LOOP
-# ==============================
-
-while True:
     try:
-        current_block = web3.eth.block_number
-
-        if current_block > last_checked_block:
-            for b in range(last_checked_block + 1, current_block + 1):
-                check_block(b)
-            last_checked_block = current_block
-
-        if time.time() - last_analysis_time > ANALYSIS_INTERVAL:
-            periodic_update()
-            last_analysis_time = time.time()
-
-        time.sleep(10)
-
+        r = requests.post(url, json=payload, headers=headers)
+        print("Typefully:", r.status_code, r.text)
     except Exception as e:
-        print("Main loop error:", e)
-        time.sleep(15)
+        print("Typefully error:", e)
+
+
+def rpc_call(method, params):
+
+    payload = {
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": 1
+    }
+
+    try:
+        r = requests.post(BASE_RPC, json=payload)
+        return r.json()["result"]
+    except Exception as e:
+        print("RPC error:", e)
+        return None
+
+
+def get_latest_block():
+
+    result = rpc_call("eth_blockNumber", [])
+
+    if result:
+        return int(result, 16)
+
+    return None
+
+
+def get_block(num):
+
+    return rpc_call("eth_getBlockByNumber", [hex(num), True])
+
+
+def run_contract_monitor():
+
+    global last_alert_time
+
+    print("🔥 Base Intelligence Engine iniciado")
+
+    ultimo_bloque = get_latest_block()
+
+    if not ultimo_bloque:
+        print("Error obteniendo bloque inicial")
+        return
+
+    while True:
+
+        try:
+
+            time.sleep(10)
+
+            bloque_actual = get_latest_block()
+
+            if not bloque_actual:
+                continue
+
+            if bloque_actual > ultimo_bloque:
+
+                block_data = get_block(bloque_actual)
+
+                if not block_data:
+                    continue
+
+                for tx in block_data["transactions"]:
+
+                    # NUEVO CONTRATO
+                    if tx["to"] is None:
+
+                        gas_used = int(tx["gas"], 16)
+                        valor_eth = int(tx["value"], 16) / (10**18)
+
+                        if gas_used < MIN_GAS_DEPLOY and valor_eth < MIN_ETH_VALUE:
+                            continue
+
+                        now = time.time()
+
+                        if now - last_alert_time < COOLDOWN_SECONDS:
+                            continue
+
+                        last_alert_time = now
+
+                        contract_hash = tx["hash"]
+
+                        tracked_contracts[contract_hash] = bloque_actual
+
+                        mensaje = (
+                            "🚀 BASE NETWORK — NEW SMART CONTRACT\n\n"
+                            f"Gas Used: {gas_used}\n"
+                            f"ETH Value: {valor_eth:.4f}\n\n"
+                            f"Tx:\n{contract_hash}\n\n"
+                            "---\n"
+                            "On-Chain Intelligence"
+                        )
+
+                        print(mensaje)
+
+                        enviar_telegram(mensaje)
+                        publicar_typefully(mensaje)
+
+                    # DETECCION LIQUIDEZ
+
+                    for contract, start_block in list(tracked_contracts.items()):
+
+                        if bloque_actual - start_block <= 50:
+
+                            value = int(tx["value"], 16) / (10**18)
+
+                            if value >= MIN_LIQUIDITY and tx["to"] == contract:
+
+                                alerta = (
+                                    "💰 BASE NETWORK — LIQUIDITY DETECTED\n\n"
+                                    f"Liquidity Added: {value:.4f} ETH\n"
+                                    f"Contract Tx:\n{contract}\n\n"
+                                    "---\n"
+                                    "On-Chain Intelligence"
+                                )
+
+                                print(alerta)
+
+                                enviar_telegram(alerta)
+                                publicar_typefully(alerta)
+
+                                del tracked_contracts[contract]
+
+                        else:
+                            del tracked_contracts[contract]
+
+                ultimo_bloque = bloque_actual
+
+        except Exception as e:
+
+            print("Loop error:", e)
+            time.sleep(5)
+
+
+if __name__ == "__main__":
+
+    run_contract_monitor()
