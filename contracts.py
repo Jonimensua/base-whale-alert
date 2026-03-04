@@ -7,10 +7,8 @@ BASE_RPC = "https://mainnet.base.org"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
-SOCIAL_SET_ID = os.getenv("SOCIAL_SET_ID")
+PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
-# FILTROS
 MIN_GAS_DEPLOY = 3000000
 MIN_ETH_VALUE = 0.5
 MIN_LIQUIDITY = 2
@@ -21,6 +19,7 @@ last_alert_time = 0
 
 
 def enviar_telegram(texto):
+
     if not TELEGRAM_TOKEN or not CHAT_ID:
         print("Telegram no configurado")
         return
@@ -39,30 +38,24 @@ def enviar_telegram(texto):
         print("Telegram error:", e)
 
 
-def publicar_typefully(texto):
+def publicar_en_x(texto):
 
-    if not TYPEFULLY_API_KEY or not SOCIAL_SET_ID:
-        print("Typefully no configurado")
+    if not PUBLISHER_URL:
+        print("Publisher no configurado")
         return
 
-    url = "https://api.typefully.com/v1/drafts"
-
-    headers = {
-        "X-API-KEY": TYPEFULLY_API_KEY,
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "content": texto,
-        "social_set_ids": [int(SOCIAL_SET_ID)],
-        "auto_schedule": True
-    }
-
     try:
-        r = requests.post(url, json=payload, headers=headers)
-        print("Typefully:", r.status_code, r.text)
+
+        r = requests.post(
+            PUBLISHER_URL + "/post",
+            json={"content": texto}
+        )
+
+        print("Publisher status:", r.status_code)
+
     except Exception as e:
-        print("Typefully error:", e)
+
+        print("Publisher error:", e)
 
 
 def rpc_call(method, params):
@@ -77,7 +70,9 @@ def rpc_call(method, params):
     try:
         r = requests.post(BASE_RPC, json=payload)
         return r.json()["result"]
+
     except Exception as e:
+
         print("RPC error:", e)
         return None
 
@@ -161,9 +156,9 @@ def run_contract_monitor():
                         print(mensaje)
 
                         enviar_telegram(mensaje)
-                        publicar_typefully(mensaje)
+                        publicar_en_x(mensaje)
 
-                    # DETECCION LIQUIDEZ
+                    # DETECCION DE LIQUIDEZ
 
                     for contract, start_block in list(tracked_contracts.items()):
 
@@ -184,7 +179,7 @@ def run_contract_monitor():
                                 print(alerta)
 
                                 enviar_telegram(alerta)
-                                publicar_typefully(alerta)
+                                publicar_en_x(alerta)
 
                                 del tracked_contracts[contract]
 
