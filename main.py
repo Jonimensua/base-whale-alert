@@ -11,14 +11,8 @@ def publish_to_x(content):
 
     print("Publisher status:", response.status_code)
     print("Publisher body:", response.text)
-payload = {
-    "content": "Testing Base automation final.",
-    "social_set_ids": [SOCIAL_SET_ID],
-    "auto_post": True
-}
 
-response = requests.post(url, json=payload, headers=headers)
 
-print("Status:", response.status_code)
-print("Body:", response.text)
-
+# Test manual
+if __name__ == "__main__":
+    publish_to_x("Testing Base automation final.")
