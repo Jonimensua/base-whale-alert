@@ -10,14 +10,13 @@ CHAT_ID = os.getenv("CHAT_ID")
 PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
 # FILTROS
-MIN_GAS = 3000000
-MIN_ETH = 0.2
+MIN_GAS = 2000000
+MIN_ETH = 0.05
 
-# limitar frecuencia de publicaciones
+# TIEMPO MINIMO ENTRE POSTS
 POST_DELAY = 180
-last_post = 0
 
-tracked_contracts = {}
+last_post = 0
 
 
 def enviar_telegram(texto):
@@ -33,7 +32,7 @@ def enviar_telegram(texto):
     }
 
     try:
-        requests.post(url, data=data)
+        requests.post(url, data=data, timeout=10)
     except:
         pass
 
@@ -46,7 +45,8 @@ def publicar(texto):
     try:
         requests.post(
             PUBLISHER_URL + "/post",
-            json={"content": texto}
+            json={"content": texto},
+            timeout=10
         )
     except:
         pass
@@ -62,7 +62,7 @@ def rpc_call(method, params):
     }
 
     try:
-        r = requests.post(BASE_RPC, json=payload)
+        r = requests.post(BASE_RPC, json=payload, timeout=10)
         return r.json()["result"]
     except:
         return None
@@ -87,7 +87,7 @@ def run_contract_monitor():
 
     global last_post
 
-    print("Base Contract Monitor iniciado")
+    print("🚀 Base Contract Monitor iniciado")
 
     ultimo_bloque = get_latest_block()
 
@@ -128,9 +128,9 @@ def run_contract_monitor():
                         if eth_value < MIN_ETH:
                             continue
 
-                        # RATE LIMIT
                         now = time.time()
 
+                        # RATE LIMIT
                         if now - last_post < POST_DELAY:
                             continue
 
@@ -138,18 +138,18 @@ def run_contract_monitor():
 
                         contract_hash = tx["hash"]
 
+                        # MENSAJE PARA X (menos de 280 chars)
                         mensaje = (
-                            "BASE NETWORK — NEW SMART CONTRACT\n\n"
-                            f"Gas Used: {gas_used}\n"
-                            f"ETH Value: {eth_value:.4f}\n\n"
-                            f"Tx:\n{contract_hash}\n\n"
-                            "---\n"
-                            "On-Chain Intelligence"
+                            f"🚨 New contract deployed on Base\n\n"
+                            f"Gas: {gas_used}\n"
+                            f"Value: {eth_value:.3f} ETH\n\n"
+                            f"https://basescan.org/tx/{contract_hash}"
                         )
 
                         print(mensaje)
 
                         enviar_telegram(mensaje)
+
                         publicar(mensaje)
 
                 ultimo_bloque = bloque_actual
@@ -157,6 +157,7 @@ def run_contract_monitor():
         except Exception as e:
 
             print("Error:", e)
+
             time.sleep(5)
 
 
