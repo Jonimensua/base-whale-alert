@@ -9,9 +9,13 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
-# FILTRO PARA REDUCIR ALERTAS
+# FILTROS
 MIN_GAS = 3000000
-MIN_ETH = 0.5
+MIN_ETH = 0.2
+
+# limitar frecuencia de publicaciones
+POST_DELAY = 180
+last_post = 0
 
 tracked_contracts = {}
 
@@ -81,6 +85,8 @@ def get_block(num):
 
 def run_contract_monitor():
 
+    global last_post
+
     print("Base Contract Monitor iniciado")
 
     ultimo_bloque = get_latest_block()
@@ -112,20 +118,30 @@ def run_contract_monitor():
                     if tx["to"] is None:
 
                         gas_used = int(tx["gas"], 16)
-                        valor_eth = int(tx["value"], 16) / (10**18)
+                        eth_value = int(tx["value"], 16) / (10**18)
 
-                        # FILTRO
-                        if gas_used < MIN_GAS and valor_eth < MIN_ETH:
+                        # FILTRO GAS
+                        if gas_used < MIN_GAS:
                             continue
 
-                        contract_hash = tx["hash"]
+                        # FILTRO ETH
+                        if eth_value < MIN_ETH:
+                            continue
 
-                        tracked_contracts[contract_hash] = bloque_actual
+                        # RATE LIMIT
+                        now = time.time()
+
+                        if now - last_post < POST_DELAY:
+                            continue
+
+                        last_post = now
+
+                        contract_hash = tx["hash"]
 
                         mensaje = (
                             "BASE NETWORK — NEW SMART CONTRACT\n\n"
                             f"Gas Used: {gas_used}\n"
-                            f"ETH Value: {valor_eth:.4f}\n"
+                            f"ETH Value: {eth_value:.4f}\n\n"
                             f"Tx:\n{contract_hash}\n\n"
                             "---\n"
                             "On-Chain Intelligence"
