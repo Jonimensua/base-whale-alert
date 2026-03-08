@@ -1,166 +1,90 @@
-import requests
-import time
 import os
+import time
+import requests
+from web3 import Web3
 
-BASE_RPC = "https://mainnet.base.org"
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-
+BASE_RPC = os.getenv("BASE_RPC")
 PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
-# FILTROS
-MIN_GAS = 1200000
-MIN_ETH = 0
+w3 = Web3(Web3.HTTPProvider(BASE_RPC))
 
-# TIEMPO MINIMO ENTRE POSTS
-POST_DELAY = 180
+print("🚀 Base Contract Monitor iniciado")
+print("Connected to Base. Current block:", w3.eth.block_number)
 
-last_post = 0
+last_block = w3.eth.block_number
 
 
-def enviar_telegram(texto):
-
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-        return
-
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-
-    data = {
-        "chat_id": CHAT_ID,
-        "text": texto
-    }
-
+def send_to_publisher(content):
     try:
-        requests.post(url, data=data, timeout=10)
-    except:
-        pass
 
+        # límite para Typefully
+        content = content[:260]
 
-def publicar(texto):
-
-    if not PUBLISHER_URL:
-        return
-
-    try:
-        requests.post(
-            PUBLISHER_URL + "/post",
-            json={"content": texto},
-            timeout=10
+        res = requests.post(
+            f"{PUBLISHER_URL}/post",
+            json={"content": content},
+            timeout=30
         )
-    except:
-        pass
+
+        print("Publisher status:", res.status_code)
+        print("Publisher body:", res.text)
+
+    except Exception as e:
+        print("Publisher error:", e)
 
 
-def rpc_call(method, params):
-
-    payload = {
-        "jsonrpc": "2.0",
-        "method": method,
-        "params": params,
-        "id": 1
-    }
-
+while True:
     try:
-        r = requests.post(BASE_RPC, json=payload, timeout=10)
-        return r.json()["result"]
-    except:
-        return None
 
+        latest_block = w3.eth.block_number
 
-def get_latest_block():
+        if latest_block > last_block:
 
-    result = rpc_call("eth_blockNumber", [])
+            for block_number in range(last_block + 1, latest_block + 1):
 
-    if result:
-        return int(result, 16)
+                print("Checking block:", block_number)
 
-    return None
+                block = w3.eth.get_block(block_number, full_transactions=True)
 
+                for tx in block.transactions:
 
-def get_block(num):
+                    # contrato nuevo
+                    if tx.to is None:
 
-    return rpc_call("eth_getBlockByNumber", [hex(num), True])
+                        receipt = w3.eth.get_transaction_receipt(tx.hash)
 
+                        gas_used = receipt.gasUsed
 
-def run_contract_monitor():
-
-    global last_post
-
-    print("🚀 Base Contract Monitor iniciado")
-
-    ultimo_bloque = get_latest_block()
-
-    if not ultimo_bloque:
-        print("Error obteniendo bloque inicial")
-        return
-
-    while True:
-
-        try:
-
-            time.sleep(10)
-
-            bloque_actual = get_latest_block()
-
-            if not bloque_actual:
-                continue
-
-            if bloque_actual > ultimo_bloque:
-
-                block = get_block(bloque_actual)
-
-                if not block:
-                    continue
-
-                for tx in block["transactions"]:
-
-                    if tx["to"] is None:
-
-                        gas_used = int(tx["gas"], 16)
-                        eth_value = int(tx["value"], 16) / (10**18)
-
-                        # FILTRO GAS
-                        if gas_used < MIN_GAS:
+                        # filtro para evitar contratos basura
+                        if gas_used < 1000000:
                             continue
 
-                        # FILTRO ETH
-                        if eth_value < MIN_ETH:
-                            continue
+                        eth_value = w3.from_wei(tx.value, "ether")
 
-                        now = time.time()
+                        tx_hash = tx.hash.hex()
 
-                        # RATE LIMIT
-                        if now - last_post < POST_DELAY:
-                            continue
+                        post = f"""
+🚨 BASE CONTRACT DEPLOYED
 
-                        last_post = now
+Gas: {gas_used}
+ETH: {eth_value}
 
-                        contract_hash = tx["hash"]
+Tx:
+{tx_hash}
 
-                        # MENSAJE PARA X (menos de 280 chars)
-                        mensaje = (
-                            f"🚨 New contract deployed on Base\n\n"
-                            f"Gas: {gas_used}\n"
-                            f"Value: {eth_value:.3f} ETH\n\n"
-                            f"https://basescan.org/tx/{contract_hash}"
-                        )
+#Base #OnChain
 
-                        print(mensaje)
+/community/1991809112070557893
+"""
 
-                        enviar_telegram(mensaje)
+                        print("Publishing alert")
 
-                        publicar(mensaje)
+                        send_to_publisher(post)
 
-                ultimo_bloque = bloque_actual
+        last_block = latest_block
 
-        except Exception as e:
+        time.sleep(10)
 
-            print("Error:", e)
-
-            time.sleep(5)
-
-
-if __name__ == "__main__":
-
-    run_contract_monitor()
+    except Exception as e:
+        print("Error:", e)
+        time.sleep(10)
