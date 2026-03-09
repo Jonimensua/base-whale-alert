@@ -8,12 +8,10 @@ PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
 w3 = Web3(Web3.HTTPProvider(BASE_RPC))
 
-print("🚀 Base Intelligence Engine iniciado")
-print("Connected to Base:", w3.eth.block_number)
+print("🚀 Base Contract Monitor iniciado")
+print("Connected block:", w3.eth.block_number)
 
 last_block = w3.eth.block_number
-
-tracked_contracts = {}
 
 
 def send_to_publisher(content):
@@ -29,6 +27,7 @@ def send_to_publisher(content):
         )
 
         print("Publisher status:", res.status_code)
+        print("Publisher body:", res.text)
 
     except Exception as e:
 
@@ -51,49 +50,38 @@ while True:
 
                 for tx in block.transactions:
 
-                    # detectar contrato nuevo
+                    # contrato nuevo
                     if tx.to is None:
 
                         receipt = w3.eth.get_transaction_receipt(tx.hash)
 
                         gas_used = receipt.gasUsed
 
-                        if gas_used < 400000:
+                        # filtro simple para evitar spam
+                        if gas_used < 500000:
                             continue
-
-                        contract = receipt.contractAddress
-
-                        tracked_contracts[contract] = block_number
-
-                        print("New contract tracked:", contract)
-
-                    # detectar liquidez
-                    if tx.to in tracked_contracts:
 
                         eth_value = w3.from_wei(tx.value, "ether")
 
-                        if eth_value > 0.1:
+                        tx_hash = tx.hash.hex()
 
-                            tx_hash = tx.hash.hex()
+                        post = f"""
+🚨 BASE CONTRACT DEPLOYED
 
-                            post = f"""
-🚨 NEW BASE TOKEN
+Gas Used: {gas_used}
+ETH Value: {eth_value}
 
-Liquidity: {eth_value} ETH
+Tx
+https://basescan.org/tx/{tx_hash}
 
-Tx:
-{tx_hash}
-
-#Base #Memecoin
+#Base #OnChain
 
 /community/1991809112070557893
 """
 
-                            print("Publishing alert")
+                        print("Publishing alert")
 
-                            send_to_publisher(post)
-
-                            del tracked_contracts[tx.to]
+                        send_to_publisher(post)
 
         last_block = latest_block
 
@@ -102,5 +90,4 @@ Tx:
     except Exception as e:
 
         print("Loop error:", e)
-
         time.sleep(10)
