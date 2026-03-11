@@ -1,93 +1,154 @@
-import os
-import time
 import requests
-from web3 import Web3
+import time
+import os
 
-BASE_RPC = os.getenv("BASE_RPC")
+BASE_RPC = "https://mainnet.base.org"
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 PUBLISHER_URL = os.getenv("PUBLISHER_URL")
 
-w3 = Web3(Web3.HTTPProvider(BASE_RPC))
+# filtro contratos basura
+GAS_THRESHOLD = 1200000
 
-print("🚀 Base Contract Monitor iniciado")
-print("Connected block:", w3.eth.block_number)
-
-last_block = w3.eth.block_number
+# evitar duplicados
+seen_contracts = set()
 
 
-def send_to_publisher(content):
+def rpc_call(method, params):
+    payload = {
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": 1
+    }
+
+    try:
+        r = requests.post(BASE_RPC, json=payload, timeout=10)
+        return r.json()["result"]
+    except:
+        return None
+
+
+def get_latest_block():
+    block = rpc_call("eth_blockNumber", [])
+    return int(block, 16)
+
+
+def get_block(block_number):
+    return rpc_call("eth_getBlockByNumber", [hex(block_number), True])
+
+
+def send_telegram(message):
+
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("Telegram not configured")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": message
+    }
+
+    try:
+        requests.post(url, data=payload, timeout=10)
+    except:
+        print("Telegram error")
+
+
+def publish_to_typefully(message):
+
+    if not PUBLISHER_URL:
+        print("Publisher not configured")
+        return
 
     try:
 
-        content = content[:260]
+        print("Publishing alert")
 
-        res = requests.post(
-            f"{PUBLISHER_URL}/post",
-            json={"content": content},
-            timeout=30
+        r = requests.post(
+            PUBLISHER_URL,
+            json={"content": message},
+            timeout=20
         )
 
-        print("Publisher status:", res.status_code)
-        print("Publisher body:", res.text)
+        print("Publisher status:", r.status_code)
 
     except Exception as e:
-
         print("Publisher error:", e)
 
 
-while True:
+def format_message(tx_hash, gas_used, value):
 
-    try:
+    value_eth = value / 10**18
 
-        latest_block = w3.eth.block_number
+    message = (
+        "🚨 BASE CONTRACT DEPLOYED\n"
+        f"Gas: {gas_used}\n"
+        f"ETH: {value_eth:.4f}\n"
+        f"https://basescan.org/tx/{tx_hash}\n"
+        "#Base #OnChain"
+    )
 
-        if latest_block > last_block:
+    return message
 
-            for block_number in range(last_block + 1, latest_block + 1):
 
-                print("Checking block:", block_number)
+def monitor():
 
-                block = w3.eth.get_block(block_number, full_transactions=True)
+    print("Base contract monitor started")
 
-                for tx in block.transactions:
+    last_block = get_latest_block()
 
-                    # contrato nuevo
-                    if tx.to is None:
+    while True:
 
-                        receipt = w3.eth.get_transaction_receipt(tx.hash)
+        try:
 
-                        gas_used = receipt.gasUsed
+            current_block = get_latest_block()
 
-                        # filtro simple para evitar spam
-                        if gas_used < 500000:
+            if current_block > last_block:
+
+                block = get_block(current_block)
+
+                if not block:
+                    time.sleep(2)
+                    continue
+
+                for tx in block["transactions"]:
+
+                    if tx["to"] is None:
+
+                        tx_hash = tx["hash"]
+
+                        if tx_hash in seen_contracts:
                             continue
 
-                        eth_value = w3.from_wei(tx.value, "ether")
+                        gas_used = int(tx["gas"], 16)
+                        value = int(tx["value"], 16)
 
-                        tx_hash = tx.hash.hex()
+                        if gas_used < GAS_THRESHOLD:
+                            continue
 
-                        post = f"""
-🚨 BASE CONTRACT DEPLOYED
+                        seen_contracts.add(tx_hash)
 
-Gas Used: {gas_used}
-ETH Value: {eth_value}
+                        message = format_message(tx_hash, gas_used, value)
 
-Tx
-https://basescan.org/tx/{tx_hash}
+                        print(message)
 
-#Base #OnChain
+                        send_telegram(message)
 
-/community/1991809112070557893
-"""
+                        publish_to_typefully(message)
 
-                        print("Publishing alert")
+                last_block = current_block
 
-                        send_to_publisher(post)
+            time.sleep(2)
 
-        last_block = latest_block
+        except Exception as e:
 
-        time.sleep(10)
+            print("Monitor error:", e)
+            time.sleep(5)
 
-    except Exception as e:
 
-        print("Loop error:", e)
-        time.sleep(10)
+if __name__ == "__main__":
+    monitor()
